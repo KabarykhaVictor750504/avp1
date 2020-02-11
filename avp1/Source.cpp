@@ -150,237 +150,217 @@
 #include <xmmintrin.h>
 #include <immintrin.h>
 #include <ctime>
+#include <functional>
 #include <chrono>
 #include <Windows.h>
 #include <new>
 
-
-constexpr size_t MS = 32;
-constexpr size_t KS = 16;
-
 #define OUTER_N_ROW 2
 #define OUTER_N_COL 2
 
-#define INNER_N_ROW_FIRST 8
-#define INNER_N_COL_FIRST 16
+#define INNER_N_ROW_FIRST 2
+#define INNER_N_COL_FIRST 2
 
-#define INNER_N_ROW_SECOND 16
-#define INNER_N_COL_SECOND 4
+#define INNER_N_ROW_SECOND 2
+#define INNER_N_COL_SECOND 2
 
-void mat_out(const float const *const *const *const *const a)
+class MatrixProcessor
 {
-	for (size_t i = 0; i < OUTER_N_ROW; ++i)
+	using FltMxMxIn = const float const *const *const *const *const;
+	using FltMxMxOut = float *const*const*const*const;
+public:
+	static void Print(FltMxMxIn cpcpcpcpA, const size_t nOutRow, const size_t nOutCol, const size_t nInRow, const size_t nInCol)
 	{
-		for (size_t k = 0; k < INNER_N_ROW_FIRST; ++k)
+		for (size_t iOuterRow = 0; iOuterRow < nOutRow; ++iOuterRow)
 		{
-			for (size_t j = 0; j < OUTER_N_COL; ++j)
+			for (size_t kInnerRow = 0; kInnerRow < nInRow; ++kInnerRow)
 			{
-				for (size_t m = 0; m < INNER_N_COL_SECOND; ++m)
-					std::cout << a[i][j][k][m] << ' ';
-				std::cout << '\t';
+				for (size_t jOuterCol = 0; jOuterCol < nOutCol; ++jOuterCol)
+				{
+					for (size_t mInnerCol = 0; mInnerCol < nInCol; ++mInnerCol)
+						std::cout << cpcpcpcpA[iOuterRow][jOuterCol][kInnerRow][mInnerCol] << ' ';
+					std::cout << '\t';
+				}
+				std::cout << std::endl;
 			}
 			std::cout << std::endl;
 		}
-		std::cout << std::endl;
 	}
-}
 
-void mat_mul(const float const *const *const *const *const  matA, const  float const *const*const*const*const  matB,  float *const*const*const*const matC)
-{
-	for (int i = 0; i < OUTER_N_ROW; i++)
+	static void Mult(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
 	{
-		for (int j = 0; j < OUTER_N_COL; j++)
+		for (int i = 0; i < OUTER_N_ROW; i++)
 		{
-			for (int k = 0; k < OUTER_N_COL; k++)
+			for (int j = 0; j < OUTER_N_COL; j++)
 			{
-				for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+				for (int k = 0; k < OUTER_N_COL; k++)
 				{
-					for (int x = 0; x < INNER_N_COL_SECOND; x++)
+					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
 					{
-						float tmp = matA[i][k][l][x];
-						for (int m = 0; m < INNER_N_ROW_SECOND; m++)
+						for (int x = 0; x < INNER_N_COL_SECOND; x++)
 						{
-							matC[i][j][l][m] += tmp * matB[k][j][x][m];
+							float tmp = inA[i][k][l][x];
+							for (int m = 0; m < INNER_N_ROW_SECOND; m++)
+							{
+								out[i][j][l][m] += tmp * inB[k][j][x][m];
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-}
 
-void mat_mul_intrin(float**** const matA, float**** const matB, float**** matC)
-{
-	for (int i = 0; i < OUTER_N_ROW; i++)
+	static void MultIntrin(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
 	{
-		for (int j = 0; j < OUTER_N_COL; j++)
+		for (int i = 0; i < OUTER_N_ROW; i++)
 		{
-			for (int k = 0; k < OUTER_N_COL; k++)
+			for (int j = 0; j < OUTER_N_COL; j++)
 			{
-				for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+				for (int k = 0; k < OUTER_N_COL; k++)
 				{
-					__m128* c = (__m128*)(matC[i][j][l]);
-
-					__m128 a = _mm_load_ps1(&matA[i][k][l][0]);
-					__m128* b = (__m128*)(matB[k][j][0]);
-					*(c + 0) = _mm_add_ps(*(c + 0), _mm_mul_ps(a, *(b + 0)));
-					*(c + 1) = _mm_add_ps(*(c + 1), _mm_mul_ps(a, *(b + 1)));
-					*(c + 2) = _mm_add_ps(*(c + 2), _mm_mul_ps(a, *(b + 2)));
-					*(c + 3) = _mm_add_ps(*(c + 3), _mm_mul_ps(a, *(b + 3)));
-
-					a = _mm_load_ps1(&matA[i][k][l][1]);
-					b = (__m128*)(matB[k][j][1]);
-					*(c + 0) = _mm_add_ps(*(c + 0), _mm_mul_ps(a, *(b + 0)));
-					*(c + 1) = _mm_add_ps(*(c + 1), _mm_mul_ps(a, *(b + 1)));
-					*(c + 2) = _mm_add_ps(*(c + 2), _mm_mul_ps(a, *(b + 2)));
-					*(c + 3) = _mm_add_ps(*(c + 3), _mm_mul_ps(a, *(b + 3)));
-
-					a = _mm_load_ps1(&matA[i][k][l][2]);
-					b = (__m128*)(matB[k][j][2]);
-					*(c + 0) = _mm_add_ps(*(c + 0), _mm_mul_ps(a, *(b + 0)));
-					*(c + 1) = _mm_add_ps(*(c + 1), _mm_mul_ps(a, *(b + 1)));
-					*(c + 2) = _mm_add_ps(*(c + 2), _mm_mul_ps(a, *(b + 2)));
-					*(c + 3) = _mm_add_ps(*(c + 3), _mm_mul_ps(a, *(b + 3)));
-
-					a = _mm_load_ps1(&matA[i][k][l][3]);
-					b = (__m128*)(matB[k][j][3]);
-					*(c + 0) = _mm_add_ps(*(c + 0), _mm_mul_ps(a, *(b + 0)));
-					*(c + 1) = _mm_add_ps(*(c + 1), _mm_mul_ps(a, *(b + 1)));
-					*(c + 2) = _mm_add_ps(*(c + 2), _mm_mul_ps(a, *(b + 2)));
-					*(c + 3) = _mm_add_ps(*(c + 3), _mm_mul_ps(a, *(b + 3)));
-				}
-			}
-		}
-	}
-}
-
-void mat_mul_avx(float**** const matA, float**** const matB, float**** matC)
-{
-	for (int i = 0; i < MS; i++)
-	{
-		for (int j = 0; j < MS; j++)
-		{
-			for (int k = 0; k < MS; k++)
-			{
-				for (int l = 0; l < KS; l++)
-				{
-					__m256* c = (__m256*)(matC[i][j][l]);
-					for (int x = 0; x < KS; x++)
+					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
 					{
-						__m256 a = _mm256_broadcast_ss(&matA[i][k][l][x]);
-						__m256* b = (__m256*)(matB[k][j][x]);
+						__m128* const pOut = (__m128*)(out[i][j][l]);
 
-						*(c + 0) = _mm256_add_ps(*(c + 0), _mm256_mul_ps(a, *(b + 0)));
-						*(c + 1) = _mm256_add_ps(*(c + 1), _mm256_mul_ps(a, *(b + 1)));
-						//for (int m = 0; m < KS; m += 4)
-						//{
-						//	/*__m128 c = _mm_loadu_ps(&matC[i][j][l][m]);
-						//	__m128 b = _mm_loadu_ps(&matB[k][j][x][m]);
-						//	__m128 ab = _mm_mul_ps(a, b);
-						//	c = _mm_add_ps(c, ab);
-						//	_mm_storeu_ps(&matC[i][j][l][m], c);*/
+						const __m128 a0 = _mm_load_ps1(&inA[i][k][l][0]);
+						const __m128* const b0 = (__m128*)(inB[k][j][0]);
+						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a0, *(b0 + 0)));
+						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a0, *(b0 + 1)));
+						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a0, *(b0 + 2)));
+						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a0, *(b0 + 3)));
 
-						//	//*(__m128*)(matC[i][j][l] + m) = _mm_add_ps(*(__m128*)(matC[i][j][l]+m), _mm_mul_ps(a, *(__m128*)(matB[i][j][l] + m)));
+						const __m128 a1 = _mm_load_ps1(&inA[i][k][l][1]);
+						const __m128* const b1 = (__m128*)(inB[k][j][1]);
+						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a1, *(b1 + 0)));
+						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a1, *(b1 + 1)));
+						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a1, *(b1 + 2)));
+						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a1, *(b1 + 3)));
 
-						//	//matC[i][j][l][m] += matA[i][k][l][x] * matB[k][j][x][m];
-						//}
+						const __m128 a2 = _mm_load_ps1(&inA[i][k][l][2]);
+						const __m128* const b2 = (__m128*)(inB[k][j][2]);
+						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a2, *(b2 + 0)));
+						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a2, *(b2 + 1)));
+						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a2, *(b2 + 2)));
+						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a2, *(b2 + 3)));
+
+						const __m128 a3 = _mm_load_ps1(&inA[i][k][l][3]);
+						const __m128* const b3 = (__m128*)(inB[k][j][3]);
+						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a3, *(b3 + 0)));
+						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a3, *(b3 + 1)));
+						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a3, *(b3 + 2)));
+						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a3, *(b3 + 3)));
 					}
 				}
 			}
 		}
 	}
-}
 
-void mat_mul_no_vec(float**** const matA, float**** const matB, float**** const matC)
-{
-	for (int i = 0; i < OUTER_N_ROW; i++)
+	static void MultAvx(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
 	{
-		for (int j = 0; j < OUTER_N_COL; j++)
+		//exit(0);//not implemented
+		/*for (int i = 0; i < OUTER_N_ROW; i++)
 		{
-			for (int k = 0; k < OUTER_N_COL; k++)
+			for (int j = 0; j < OUTER_N_COL; j++)
 			{
-				for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+				for (int k = 0; k < INNER_N_ROW_FIRST; k++)
 				{
-					for (int x = 0; x < INNER_N_COL_SECOND; x++)
+					for (int l = 0; l < INNER_N_COL_SECOND; l++)
 					{
+						__m256* c = (__m256*)(out[i][j][l]);
+						for (int x = 0; x < INNER_N_ROW_SECOND; x++)
+						{
+							__m256 a = _mm256_broadcast_ss(&inA[i][k][l][x]);
+							__m256* b = (__m256*)(inB[k][j][x]);
+
+							*(c + 0) = _mm256_add_ps(*(c + 0), _mm256_mul_ps(a, *(b + 0)));
+							*(c + 1) = _mm256_add_ps(*(c + 1), _mm256_mul_ps(a, *(b + 1)));
+						}
+					}
+				}
+			}
+		}*/
+	}
+
+	static void multnovec(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
+	{
+		for (int i = 0; i < OUTER_N_ROW; i++)
+		{
+			for (int j = 0; j < OUTER_N_COL; j++)
+			{
+				for (int k = 0; k < OUTER_N_COL; k++)
+				{
+					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+					{
+						for (int x = 0; x < INNER_N_COL_SECOND; x++)
+						{
 #pragma loop( no_vector )	
-						for (int m = 0; m < INNER_N_ROW_SECOND; m++)
-						{
-							matC[i][j][l][m] += matA[i][k][l][x] * matB[k][j][x][m];
+							for (int m = 0; m < INNER_N_ROW_SECOND; m++)
+							{
+								out[i][j][l][m] += inA[i][k][l][x] * inB[k][j][x][m];
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-}
 
-bool mat_eq(float**** a, float**** b)
-{
-	for (int i = 0; i < MS; i++)
+	static bool equal(FltMxMxIn inA, FltMxMxIn inB)
 	{
-		for (int j = 0; j < MS; j++)
+		for (int i = 0; i < OUTER_N_ROW; i++)
 		{
-			for (int k = 0; k < KS; k++)
+			for (int j = 0; j < OUTER_N_COL; j++)
 			{
-				for (int l = 0; l < KS; l++)
+				for (int k = 0; k < INNER_N_ROW_FIRST; k++)
 				{
-					if (a[i][j][k][l] != b[i][j][k][l])
-						return false;
+					for (int l = 0; l < INNER_N_COL_SECOND; l++)
+					{
+						if (inA[i][j][k][l] != inB[i][j][k][l])
+							return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+};
+
+
+float**** Create(const size_t nOutRow, const size_t nOutCol, const size_t nInRow, const size_t nInCol, const std::function<int()>& generator)
+{
+	float**** a = new float***[nOutRow];
+	for (int i = 0; i < nOutRow; i++)
+	{
+		a[i] = new float**[nOutCol];
+		for (int j = 0; j < nOutCol; j++)
+		{
+			a[i][j] = new float*[nInRow];
+			for (int k = 0; k < nInRow; k++)
+			{
+				a[i][j][k] = new float[nInCol];
+				for (int l = 0; l < nInCol; l++)
+				{
+					a[i][j][k][l]=generator();
 				}
 			}
 		}
 	}
-	return true;
+	return a;
 }
 
 int main()
 {
 	srand(time(NULL));
 
-	float**** a = new float***[MS];
-	float**** b = new float***[MS];
-	float**** c = new float***[MS];
-	float**** d = new float***[MS];
-	float**** e = new float***[MS];
-	float**** f = new float***[MS];
+	float**** a = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST, []() {static int i = 0; i++; return i; });
+	float**** b = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_SECOND, INNER_N_COL_SECOND, []() {static int i = 0; i++; return i; });
+	float**** c = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
+	float**** d = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
+	float**** e = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
+	float**** f = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 
-	for (int i = 0; i < MS; i++)
-	{
-		a[i] = new float**[MS];
-		b[i] = new float**[MS];
-		c[i] = new float**[MS];
-		d[i] = new float**[MS];
-		e[i] = new float**[MS];
-		f[i] = new float**[MS];
-		for (int j = 0; j < MS; j++)
-		{
-			a[i][j] = new float*[KS];
-			b[i][j] = new float*[KS];
-			c[i][j] = new float*[KS];
-			d[i][j] = new float*[KS];
-			e[i][j] = new float*[KS];
-			f[i][j] = new float*[KS];
-			for (int k = 0; k < KS; k++)
-			{
-				a[i][j][k] = (float*) operator new[](sizeof(float)*KS, std::align_val_t{ 32 });
-				b[i][j][k] = (float*) operator new[](sizeof(float)*KS, std::align_val_t{ 32 });
-				c[i][j][k] = (float*) operator new[](sizeof(float)*KS, std::align_val_t{ 32 });
-				d[i][j][k] = (float*) operator new[](sizeof(float)*KS, std::align_val_t{ 32 });
-				e[i][j][k] = (float*) operator new[](sizeof(float)*KS, std::align_val_t{ 32 });
-				f[i][j][k] = (float*) operator new[](sizeof(float)*KS, std::align_val_t{ 32 });
-				for (int l = 0; l < KS; l++)
-				{
-					a[i][j][k][l] = rand() % 10;
-					b[i][j][k][l] = rand() % 10;
-					c[i][j][k][l] = 0.0f;
-					d[i][j][k][l] = 0.0f;
-					e[i][j][k][l] = 0.0f;
-					f[i][j][k][l] = 0.0f;
-				}
-			}
-		}
-	}
+
 
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
@@ -388,7 +368,7 @@ int main()
 	std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
 	start = std::chrono::high_resolution_clock::now();
 
-	mat_mul(a, b, c);
+	MatrixProcessor::Mult(a, b, c);
 
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Time    vec: " << (end - start).count() << " ns" << std::endl;
@@ -396,7 +376,7 @@ int main()
 
 	start = std::chrono::high_resolution_clock::now();
 
-	mat_mul_no_vec(a, b, d);
+	MatrixProcessor::multnovec(a, b, d);
 
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Time no vec: " << (end - start).count() << " ns" << std::endl;
@@ -404,7 +384,7 @@ int main()
 
 	start = std::chrono::high_resolution_clock::now();
 
-	mat_mul_intrin(a, b, e);
+	//MatrixProcessor::MultIntrin(a, b, e);
 
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Time    sse: " << (end - start).count() << " ns" << std::endl;
@@ -412,33 +392,37 @@ int main()
 
 	start = std::chrono::high_resolution_clock::now();
 
-	mat_mul_avx(a, b, f);
+	//MatrixProcessor::MultAvx(a, b, f);
 
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Time    avx: " << (end - start).count() << " ns" << std::endl;
 
 
-	if (!(mat_eq(c, d) && mat_eq(d, e) && mat_eq(e, f)))
+	if (!(MatrixProcessor::equal(c, d) && MatrixProcessor::equal(d, e) && MatrixProcessor::equal(e, f)))
 		std::cout << "Not equal. Not Xdd" << std::endl;
 
 
-	mat_out(a);
+	MatrixProcessor::Print(a,OUTER_N_ROW,OUTER_N_COL,INNER_N_ROW_FIRST,INNER_N_COL_FIRST);
 
 	std::cout << "-----------------------------" << std::endl;
 
-	mat_out(b);
+	MatrixProcessor::Print(b, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_SECOND, INNER_N_COL_SECOND);
 
 	std::cout << "-----------------------------" << std::endl;
 
-	mat_out(c);
+	MatrixProcessor::Print(c, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);
 
 	std::cout << "-----------------------------" << std::endl;
 
-	mat_out(d);
+	MatrixProcessor::Print(d, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);
 
 	std::cout << "-----------------------------" << std::endl;
 
-	mat_out(e);
+	MatrixProcessor::Print(e, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);
+
+	std::cout << "-----------------------------" << std::endl;
+
+	MatrixProcessor::Print(f, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);
 
 	/*for (int i = 0; i < MS; i++)
 	{
