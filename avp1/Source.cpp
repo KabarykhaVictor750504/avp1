@@ -155,19 +155,19 @@
 #include <Windows.h>
 #include <new>
 
-#define OUTER_N_ROW 2
-#define OUTER_N_COL 2
+#define OUTER_N_ROW 200
+#define OUTER_N_COL 200
 
 #define INNER_N_ROW_FIRST 8
-#define INNER_N_COL_FIRST 16
+#define INNER_N_COL_FIRST 4
 
-#define INNER_N_ROW_SECOND 16
-#define INNER_N_COL_SECOND 4
+#define INNER_N_ROW_SECOND 4
+#define INNER_N_COL_SECOND 64
 
 class MatrixProcessor
 {
-	using FltMxMxIn = const float const *const *const *const *const;
-	using FltMxMxOut = float *const*const*const*const;
+	using FltMxMxIn =  float  ****;
+	using FltMxMxOut = float ****;
 public:
 	static void Print(FltMxMxIn cpcpcpcpA, const size_t nOutRow, const size_t nOutCol, const size_t nInRow, const size_t nInCol)
 	{
@@ -186,62 +186,61 @@ public:
 			std::cout << std::endl;
 		}
 	}
+	static void pizdecfunc(float**** inA, float**** inB, float**** out,int i) {
+		for (int j = 0; j < OUTER_N_COL; j++)
+		{
+			for (int k = 0; k < OUTER_N_COL; k++)
+			{
+				for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+				{
+					float* pOut = out[i][j][l];
+					for (int x = 0; x < INNER_N_COL_FIRST; x++)
+					{
+						const float* pb = inB[k][j][x];
+						const float tmp = inA[i][k][l][x];
+						for (int m = 0; m < INNER_N_COL_SECOND; ++m) {
+							pOut[m] +=tmp* pb[m];
+						}
+					}
+				}
+			}
+		}
+	}
+
+
 
 	static void Mult(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
 	{
 		for (int i = 0; i < OUTER_N_ROW; i++)
 		{
-			for (int j = 0; j < OUTER_N_COL; j++)
-			{
-				for (int k = 0; k < OUTER_N_COL; k++)
-				{
-					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
-					{
-						for (int x = 0; x < INNER_N_COL_FIRST; x++)
-						{
-							const float tmp = inA[i][k][l][x];
-							for (int m = 0; m < INNER_N_COL_SECOND; m++)
-							{						
-								out[i][j][l][m] += tmp * inB[k][j][x][m];
-							}
-						}
-					}
-				}
-			}
+			pizdecfunc(inA, inB, out, i);
 		}
+		
 	}
-	void gemm_v1(int M, int N, int K, const float* A, const float* B, float* C)
-	{
-		for (int i = 0; i < M; ++i)
-		{
-			float* c = C + i * N;
-			for (int k = 0; k < K; ++k)
-			{
-				const float* b = B + k * N;
-				float a = A[i * K + k];
-				for (int j = 0; j < N; ++j)
-					c[j] += a * b[j];
-			}
-		}
-	}
+
+
+
 	static void MullIntrinNoUnroll(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
 	{
-		for (int i = 0; i < OUTER_N_ROW; i++)
+		for (int i = 0; i < OUTER_N_ROW; ++i)
 		{
-			for (int j = 0; j < OUTER_N_COL; j++)
+			for (int j = 0; j < OUTER_N_COL;++j)
 			{
-				for (int k = 0; k < OUTER_N_COL; k++)
+				for (int k = 0; k < OUTER_N_COL; ++k)
 				{
-					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+					for (int l = 0; l < INNER_N_ROW_FIRST; ++l)
 					{
-						__m128* pOut = (__m128*)(out[i][j][l]);
-						for (int x = 0; x < INNER_N_COL_FIRST; x++)
+						float* pOut = out[i][j][l];
+						for (int x = 0; x < INNER_N_COL_FIRST; ++x)
 						{
-							const __m128 a = _mm_load_ps1(&inA[i][k][l][x]);
-							const __m128* const pB = (__m128*)(inB[k][j][x]);
-							for (int ms = 0; ms < INNER_N_COL_SECOND / 4; ++ms)
+							const __m256 a = _mm256_set1_ps(inA[i][k][l][x]);
+							const float* pB = inB[k][j][x];
+							for (int ms = 0; ms <INNER_N_COL_SECOND; ms+=16)
 							{
-								*(pOut + ms) = _mm_add_ps(*(pOut + ms), _mm_mul_ps(a, *(pB + ms)));
+								_mm256_storeu_ps(pOut + ms, _mm256_fmadd_ps(a,
+									_mm256_loadu_ps(pB + ms + 0), _mm256_loadu_ps(pOut + ms)));
+								_mm256_storeu_ps(pOut + ms + 8, _mm256_fmadd_ps(a,
+									_mm256_loadu_ps(pB + ms + 8), _mm256_loadu_ps(pOut + ms + 8)));
 							}
 						}
 					}
@@ -249,7 +248,7 @@ public:
 			}
 		}
 	}
-	static void MultIntrin(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
+	static void MultIntrinUnroll(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
 	{
 		for (int i = 0; i < OUTER_N_ROW; i++)
 		{
@@ -259,45 +258,20 @@ public:
 				{
 					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
 					{
-						__m128* pOut = (__m128*)(out[i][j][l]);
-						for (int x = 0; x < INNER_N_COL_SECOND; x++)
+						float* pOut = out[i][j][l];
+						for (int x = 0; x < INNER_N_COL_FIRST; x++)
 						{							
-							const __m128 a = _mm_load_ps1(&inA[i][k][l][x]);
-							const __m128* const pB = (__m128*)(inB[k][j][x]);
-							for (int ms=0; ms < INNER_N_ROW_SECOND/4;++ms)
+							const __m256 a = _mm256_set1_ps(inA[i][k][l][x]);
+							const float* pB = inB[k][j][x];
+							for (int ms = 0; ms < INNER_N_COL_SECOND ; ms+=16)
 							{
-								*(pOut + ms) = _mm_add_ps(*(pOut + ms), _mm_mul_ps(a,*(pB+ms)));
+								_mm256_storeu_ps(pOut + ms, _mm256_fmadd_ps(a,
+									_mm256_loadu_ps(pB + ms + 0), _mm256_loadu_ps(pOut + ms)));
+								_mm256_storeu_ps(pOut + ms + 8, _mm256_fmadd_ps(a,
+									_mm256_loadu_ps(pB + ms + 8), _mm256_loadu_ps(pOut + ms + 8)));
+								//*(pOut+1) = _mm256_fmadd_ps(a, *(pB + ms), *(pOut + ms));
 							}
 						}
-						/*__m128* const pOut = (__m128*)(out[i][j][l]);
-
-						const __m128 a0 = _mm_load_ps1(&inA[i][k][l][0]);
-						const __m128* const b0 = (__m128*)(inB[k][j][0]);
-						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a0, *(b0 + 0)));
-						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a0, *(b0 + 1)));
-						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a0, *(b0 + 2)));
-						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a0, *(b0 + 3)));
-
-						const __m128 a1 = _mm_load_ps1(&inA[i][k][l][1]);
-						const __m128* const b1 = (__m128*)(inB[k][j][1]);
-						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a1, *(b1 + 0)));
-						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a1, *(b1 + 1)));
-						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a1, *(b1 + 2)));
-						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a1, *(b1 + 3)));
-
-						const __m128 a2 = _mm_load_ps1(&inA[i][k][l][2]);
-						const __m128* const b2 = (__m128*)(inB[k][j][2]);
-						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a2, *(b2 + 0)));
-						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a2, *(b2 + 1)));
-						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a2, *(b2 + 2)));
-						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a2, *(b2 + 3)));
-
-						const __m128 a3 = _mm_load_ps1(&inA[i][k][l][3]);
-						const __m128* const b3 = (__m128*)(inB[k][j][3]);
-						*(pOut + 0) = _mm_add_ps(*(pOut + 0), _mm_mul_ps(a3, *(b3 + 0)));
-						*(pOut + 1) = _mm_add_ps(*(pOut + 1), _mm_mul_ps(a3, *(b3 + 1)));
-						*(pOut + 2) = _mm_add_ps(*(pOut + 2), _mm_mul_ps(a3, *(b3 + 2)));
-						*(pOut + 3) = _mm_add_ps(*(pOut + 3), _mm_mul_ps(a3, *(b3 + 3)));*/
 					}
 				}
 			}
@@ -330,28 +304,32 @@ public:
 		}*/
 	}
 
-	static void multnovec(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
-	{
-		for (int i = 0; i < OUTER_N_ROW; i++)
+	static void balance(float**** inA, float**** inB, float**** out, int i) {
+		for (int j = 0; j < OUTER_N_COL; j++)
 		{
-			for (int j = 0; j < OUTER_N_COL; j++)
+			for (int k = 0; k < OUTER_N_COL; k++)
 			{
-				for (int k = 0; k < OUTER_N_COL; k++)
+				for (int l = 0; l < INNER_N_ROW_FIRST; l++)
 				{
-					for (int l = 0; l < INNER_N_ROW_FIRST; l++)
+					for (int x = 0; x < INNER_N_COL_FIRST; x++)
 					{
-						for (int x = 0; x < INNER_N_COL_FIRST; x++)
-						{
 #pragma loop( no_vector )	
-							for (int m = 0; m < INNER_N_COL_SECOND; m++)
-							{
-								out[i][j][l][m] += inA[i][k][l][x] * inB[k][j][x][m];
-							}
+						for (int m = 0; m < INNER_N_COL_SECOND; m++)
+						{
+							out[i][j][l][m] += inA[i][k][l][x] * inB[k][j][x][m];
 						}
 					}
 				}
 			}
 		}
+	}
+
+
+	static void multnovec(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
+	{
+		for (int i = 0; i < OUTER_N_ROW; i++)
+			balance(inA, inB, out, i);
+			
 	}
 
 	static bool equal(FltMxMxIn inA, FltMxMxIn inB)
@@ -386,7 +364,7 @@ float**** Create( const size_t nOutRow, const size_t nOutCol, const size_t nInRo
 			a[i][j] = new float*[nInRow];
 			for (int k = 0; k < nInRow; k++)
 			{
-				a[i][j][k] = new float[nInCol];
+				a[i][j][k] = new float[nInCol]; /*(float*) operator new[](sizeof(float)* nInCol, std:: align_val_t (std::size_t{32}));;*/
 				for (int l = 0; l < nInCol; l++)
 				{
 					a[i][j][k][l]=generator();
@@ -401,14 +379,14 @@ int main()
 {
 	srand(time(NULL));
 
-	float**** a = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST, []() {static int i = 0; i++; return i; });
-	float**** b = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_SECOND, INNER_N_COL_SECOND, []() {static int i = 0; i++; return i; });
+	float**** a = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST, []() {return rand()%20; });
+	float**** b = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_SECOND, INNER_N_COL_SECOND, []() {return rand() % 20;});
 	float**** c = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 	float**** d = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 	float**** e = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 	float**** f = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+	//SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
@@ -438,17 +416,16 @@ int main()
 
 	start = std::chrono::high_resolution_clock::now();
 
-	//MatrixProcessor::MultAvx(a, b, f);
+	MatrixProcessor::MultIntrinUnroll(a, b, f);
 
 	end = std::chrono::high_resolution_clock::now();
 	std::cout << "Time    avx: " << (end - start).count() << " ns" << std::endl;
 
 
-	if (!(MatrixProcessor::equal(c, d) && MatrixProcessor::equal(d, e) && MatrixProcessor::equal(e, f)))
+	if (!(MatrixProcessor::equal(c, d) && MatrixProcessor::equal(d, e) /*&& MatrixProcessor::equal(e, f)*/))
 		std::cout << "Not equal. Not Xdd" << std::endl;
 
-
-	MatrixProcessor::Print(a,OUTER_N_ROW,OUTER_N_COL,INNER_N_ROW_FIRST,INNER_N_COL_FIRST);
+	/*MatrixProcessor::Print(a,OUTER_N_ROW,OUTER_N_COL,INNER_N_ROW_FIRST,INNER_N_COL_FIRST);
 
 	std::cout << "-----------------------------" << std::endl;
 
@@ -468,7 +445,7 @@ int main()
 
 	std::cout << "-----------------------------" << std::endl;
 
-	MatrixProcessor::Print(f, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);
+	MatrixProcessor::Print(f, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);*/
 
 	/*for (int i = 0; i < MS; i++)
 	{
