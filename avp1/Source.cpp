@@ -10,11 +10,12 @@
 constexpr size_t OUTER_N_ROW = 1;
 constexpr size_t OUTER_N_COL = 1;
 
-constexpr size_t INNER_N_ROW_FIRST = 8;
-constexpr size_t INNER_N_COL_FIRST = 5;
-								   	 
-constexpr size_t INNER_N_ROW_SECOND= 5;
-constexpr size_t INNER_N_COL_SECOND= 16;
+constexpr size_t INNER_N_ROW_FIRST = 5;
+constexpr size_t INNER_N_COL_FIRST = 3;
+
+
+constexpr size_t INNER_N_ROW_SECOND = 3;
+constexpr size_t INNER_N_COL_SECOND = 17;
 
 constexpr size_t INNER_N_COL_SECOND_MODULUS_16 = INNER_N_COL_SECOND % 16;
 constexpr size_t INNER_N_COL_SECOND_ALIGNED_TO_16_DOWN = INNER_N_COL_SECOND - INNER_N_COL_SECOND_MODULUS_16;
@@ -146,89 +147,115 @@ public:
 							__m256 c21 = _mm256_setzero_ps();
 							__m256 c31 = _mm256_setzero_ps();
 							__m256 a1, b1, a2, b2;
-							b1 = _mm256_loadu_ps(pB[0] + x);
-							b2 = _mm256_loadu_ps(pB[0] + x + 8);
 
-							a1 = _mm256_set1_ps(inA[i][k][l][0]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 1][0]);
-							c00 = _mm256_fmadd_ps(a1, b1, c00);
-							c01 = _mm256_fmadd_ps(a1, b2, c01);
-							c10 = _mm256_fmadd_ps(a2, b1, c10);
-							c11 = _mm256_fmadd_ps(a2, b2, c11);
+							for (int m = 0; m < INNER_N_COL_FIRST_ALIGNED_TO_4_DOWN; m += 4) {
+								b1 = _mm256_loadu_ps(pB[m] + x);
+								b2 = _mm256_loadu_ps(pB[m] + x + 8);
 
-							a1 = _mm256_set1_ps(inA[i][k][l + 2][0]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 3][0]);
-							c20 = _mm256_fmadd_ps(a1, b1, c20);
-							c21 = _mm256_fmadd_ps(a1, b2, c21);
-							c30 = _mm256_fmadd_ps(a2, b1, c30);
-							c31 = _mm256_fmadd_ps(a2, b2, c31);
+								a1 = _mm256_set1_ps(inA[i][k][l][m]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 1][m]);
+								c00 = _mm256_fmadd_ps(a1, b1, c00);
+								c01 = _mm256_fmadd_ps(a1, b2, c01);
+								c10 = _mm256_fmadd_ps(a2, b1, c10);
+								c11 = _mm256_fmadd_ps(a2, b2, c11);
 
-							b1 = _mm256_loadu_ps(pB[1] + x);
-							b2 = _mm256_loadu_ps(pB[1] + x + 8);
+								a1 = _mm256_set1_ps(inA[i][k][l + 2][m]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 3][m]);
+								c20 = _mm256_fmadd_ps(a1, b1, c20);
+								c21 = _mm256_fmadd_ps(a1, b2, c21);
+								c30 = _mm256_fmadd_ps(a2, b1, c30);
+								c31 = _mm256_fmadd_ps(a2, b2, c31);
 
-							a1 = _mm256_set1_ps(inA[i][k][l][1]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 1][1]);
-							c00 = _mm256_fmadd_ps(a1, b1, c00);
-							c01 = _mm256_fmadd_ps(a1, b2, c01);
-							c10 = _mm256_fmadd_ps(a2, b1, c10);
-							c11 = _mm256_fmadd_ps(a2, b2, c11);
+								b1 = _mm256_loadu_ps(pB[m + 1] + x);
+								b2 = _mm256_loadu_ps(pB[m + 1] + x + 8);
 
-							a1 = _mm256_set1_ps(inA[i][k][l + 2][1]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 3][1]);
-							c20 = _mm256_fmadd_ps(a1, b1, c20);
-							c21 = _mm256_fmadd_ps(a1, b2, c21);
-							c30 = _mm256_fmadd_ps(a2, b1, c30);
-							c31 = _mm256_fmadd_ps(a2, b2, c31);
+								a1 = _mm256_set1_ps(inA[i][k][l][m + 1]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 1][m + 1]);
+								c00 = _mm256_fmadd_ps(a1, b1, c00);
+								c01 = _mm256_fmadd_ps(a1, b2, c01);
+								c10 = _mm256_fmadd_ps(a2, b1, c10);
+								c11 = _mm256_fmadd_ps(a2, b2, c11);
 
-							b1 = _mm256_loadu_ps(pB[2] + x);
-							b2 = _mm256_loadu_ps(pB[2] + x + 8);
+								a1 = _mm256_set1_ps(inA[i][k][l + 2][m + 1]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 3][m + 1]);
+								c20 = _mm256_fmadd_ps(a1, b1, c20);
+								c21 = _mm256_fmadd_ps(a1, b2, c21);
+								c30 = _mm256_fmadd_ps(a2, b1, c30);
+								c31 = _mm256_fmadd_ps(a2, b2, c31);
 
-							a1 = _mm256_set1_ps(inA[i][k][l][2]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 1][2]);
-							c00 = _mm256_fmadd_ps(a1, b1, c00);
-							c01 = _mm256_fmadd_ps(a1, b2, c01);
-							c10 = _mm256_fmadd_ps(a2, b1, c10);
-							c11 = _mm256_fmadd_ps(a2, b2, c11);
+								b1 = _mm256_loadu_ps(pB[m + 2] + x);
+								b2 = _mm256_loadu_ps(pB[m + 2] + x + 8);
 
-							a1 = _mm256_set1_ps(inA[i][k][l + 2][2]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 3][2]);
-							c20 = _mm256_fmadd_ps(a1, b1, c20);
-							c21 = _mm256_fmadd_ps(a1, b2, c21);
-							c30 = _mm256_fmadd_ps(a2, b1, c30);
-							c31 = _mm256_fmadd_ps(a2, b2, c31);
+								a1 = _mm256_set1_ps(inA[i][k][l][m + 2]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 1][m + 2]);
+								c00 = _mm256_fmadd_ps(a1, b1, c00);
+								c01 = _mm256_fmadd_ps(a1, b2, c01);
+								c10 = _mm256_fmadd_ps(a2, b1, c10);
+								c11 = _mm256_fmadd_ps(a2, b2, c11);
+
+								a1 = _mm256_set1_ps(inA[i][k][l + 2][m + 2]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 3][m + 2]);
+								c20 = _mm256_fmadd_ps(a1, b1, c20);
+								c21 = _mm256_fmadd_ps(a1, b2, c21);
+								c30 = _mm256_fmadd_ps(a2, b1, c30);
+								c31 = _mm256_fmadd_ps(a2, b2, c31);
 
 
-							b1 = _mm256_loadu_ps(pB[3] + x);
-							b2 = _mm256_loadu_ps(pB[3] + x + 8);
+								b1 = _mm256_loadu_ps(pB[m + 3] + x);
+								b2 = _mm256_loadu_ps(pB[m + 3] + x + 8);
 
-							a1 = _mm256_set1_ps(inA[i][k][l][3]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 1][3]);
-							c00 = _mm256_fmadd_ps(a1, b1, c00);
-							c01 = _mm256_fmadd_ps(a1, b2, c01);
-							c10 = _mm256_fmadd_ps(a2, b1, c10);
-							c11 = _mm256_fmadd_ps(a2, b2, c11);
+								a1 = _mm256_set1_ps(inA[i][k][l][m + 3]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 1][m + 3]);
+								c00 = _mm256_fmadd_ps(a1, b1, c00);
+								c01 = _mm256_fmadd_ps(a1, b2, c01);
+								c10 = _mm256_fmadd_ps(a2, b1, c10);
+								c11 = _mm256_fmadd_ps(a2, b2, c11);
 
-							a1 = _mm256_set1_ps(inA[i][k][l + 2][3]);
-							a2 = _mm256_set1_ps(inA[i][k][l + 3][3]);
-							c20 = _mm256_fmadd_ps(a1, b1, c20);
-							c21 = _mm256_fmadd_ps(a1, b2, c21);
-							c30 = _mm256_fmadd_ps(a2, b1, c30);
-							c31 = _mm256_fmadd_ps(a2, b2, c31);
+								a1 = _mm256_set1_ps(inA[i][k][l + 2][m + 3]);
+								a2 = _mm256_set1_ps(inA[i][k][l + 3][m + 3]);
+								c20 = _mm256_fmadd_ps(a1, b1, c20);
+								c21 = _mm256_fmadd_ps(a1, b2, c21);
+								c30 = _mm256_fmadd_ps(a2, b1, c30);
+								c31 = _mm256_fmadd_ps(a2, b2, c31);
+							}
+								_mm256_storeu_ps(pOut[l] + x, _mm256_add_ps(c00, _mm256_loadu_ps(pOut[l] + x)));
+								_mm256_storeu_ps(pOut[l] + x + 8, _mm256_add_ps(c01, _mm256_loadu_ps(pOut[l] + x + 8)));
 
-							_mm256_storeu_ps(pOut[l] + x, _mm256_add_ps(c00, _mm256_loadu_ps(pOut[l] + x)));
-							_mm256_storeu_ps(pOut[l] + x + 8, _mm256_add_ps(c01, _mm256_loadu_ps(pOut[l] + x + 8)));
+								_mm256_storeu_ps(pOut[l + 1] + x, _mm256_add_ps(c10, _mm256_loadu_ps(pOut[l + 1] + x)));
+								_mm256_storeu_ps(pOut[l + 1] + x + 8, _mm256_add_ps(c11, _mm256_loadu_ps(pOut[l + 1] + x + 8)));
 
-							_mm256_storeu_ps(pOut[l + 1] + x, _mm256_add_ps(c10, _mm256_loadu_ps(pOut[l + 1] + x)));
-							_mm256_storeu_ps(pOut[l + 1] + x + 8, _mm256_add_ps(c11, _mm256_loadu_ps(pOut[l + 1] + x + 8)));
+								_mm256_storeu_ps(pOut[l + 2] + x, _mm256_add_ps(c20, _mm256_loadu_ps(pOut[l + 2] + x)));
+								_mm256_storeu_ps(pOut[l + 2] + x + 8, _mm256_add_ps(c21, _mm256_loadu_ps(pOut[l + 2] + x + 8)));
 
-							_mm256_storeu_ps(pOut[l + 2] + x, _mm256_add_ps(c20, _mm256_loadu_ps(pOut[l + 2] + x)));
-							_mm256_storeu_ps(pOut[l + 2] + x + 8, _mm256_add_ps(c21, _mm256_loadu_ps(pOut[l + 2] + x + 8)));
+								_mm256_storeu_ps(pOut[l + 3] + x, _mm256_add_ps(c30, _mm256_loadu_ps(pOut[l + 3] + x)));
+								_mm256_storeu_ps(pOut[l + 3] + x + 8, _mm256_add_ps(c31, _mm256_loadu_ps(pOut[l + 3] + x + 8)));
+							
+							for (int mm = INNER_N_COL_FIRST_ALIGNED_TO_4_DOWN; mm < INNER_N_COL_FIRST; ++mm)
+							{
+								for (int ll = l; ll < l+4; ++ll)
+								{
+									const float* const* pB = inB[k][j];
+									for (int xx = x; xx < x+16; ++xx)
+									{
+											pOut[ll][xx] += inA[i][k][ll][mm] * pB[mm][xx];
 
-							_mm256_storeu_ps(pOut[l + 3] + x, _mm256_add_ps(c30, _mm256_loadu_ps(pOut[l + 3] + x)));
-							_mm256_storeu_ps(pOut[l + 3] + x + 8, _mm256_add_ps(c31, _mm256_loadu_ps(pOut[l + 3] + x + 8)));
-
+									}
+								}
+							}
 						}
 					
+						for (int xx = INNER_N_COL_SECOND_ALIGNED_TO_16_DOWN; xx < INNER_N_COL_SECOND; ++xx)
+						{
+							for (int ll = l; ll < l+4; ++ll)
+							{
+								const float* const* pB = inB[k][j];
+								for (int mm = 0; mm < INNER_N_COL_FIRST; ++mm)
+								{
+									pOut[ll][xx] += inA[i][k][ll][mm] * pB[mm][xx];
+
+								}
+							}
+						}
 						/*for (int mmm = INNER_N_COL_FIRST_ALIGNED_TO_4_DOWN; mmm < INNER_N_COL_FIRST; ++mmm) 
 						{
 							for (int xx = 0; xx < INNER_N_COL_SECOND; ++xx)
@@ -237,32 +264,8 @@ public:
 							}
 						}*/
 					}	
-					for (int x = INNER_N_COL_SECOND_ALIGNED_TO_16_DOWN; x < INNER_N_COL_SECOND; ++x)
-					{
-						for (int l = 0; l < INNER_N_COL_FIRST; ++l)
-						{
-							const float * const* pA = inB[k][j];
-							const float tmp = inB[i][k][l][x];
-							for (int m = 0; m < INNER_N_COL_FIRST; ++m)
-							{
-								pOut[m][x] += tmp * pA[m][l];
-
-							}
-						}
-					}
-					for (int x = INNER_N_COL_FIRST_ALIGNED_TO_4_DOWN; x < INNER_N_ROW_SECOND; ++x)
-					{
-						for(int l=0;l<INNER_N_ROW_FIRST;++l)
-						{
-						const float const* pb = inB[k][j][x];
-						const float tmp = inA[i][k][l][x];
-						for (int m = 0; m < INNER_N_COL_SECOND; ++m)
-						{
-							pOut[l][m] += tmp * pb[m];
-
-						}
-						}
-					}
+					
+					
 					for (int lll = INNER_N_ROW_FIRST_ALIGNED_TO_4_DOWN; lll < INNER_N_ROW_FIRST; ++lll) {
 						for (int xxxx = 0; xxxx < INNER_N_COL_FIRST; xxxx++)
 						{
