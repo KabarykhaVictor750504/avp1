@@ -7,15 +7,15 @@
 #include <Windows.h>
 #include <new>
 
-constexpr size_t OUTER_N_ROW = 1;
-constexpr size_t OUTER_N_COL = 1;
+constexpr size_t OUTER_N_ROW = 1024;
+constexpr size_t OUTER_N_COL = 1024;
 
-constexpr size_t INNER_N_ROW_FIRST = 5;
-constexpr size_t INNER_N_COL_FIRST = 3;
+constexpr size_t INNER_N_ROW_FIRST = 16;
+constexpr size_t INNER_N_COL_FIRST = 8;
 
 
-constexpr size_t INNER_N_ROW_SECOND = 3;
-constexpr size_t INNER_N_COL_SECOND = 17;
+constexpr size_t INNER_N_ROW_SECOND = 8;
+constexpr size_t INNER_N_COL_SECOND = 16;
 
 constexpr size_t INNER_N_COL_SECOND_MODULUS_16 = INNER_N_COL_SECOND % 16;
 constexpr size_t INNER_N_COL_SECOND_ALIGNED_TO_16_DOWN = INNER_N_COL_SECOND - INNER_N_COL_SECOND_MODULUS_16;
@@ -256,16 +256,7 @@ public:
 								}
 							}
 						}
-						/*for (int mmm = INNER_N_COL_FIRST_ALIGNED_TO_4_DOWN; mmm < INNER_N_COL_FIRST; ++mmm) 
-						{
-							for (int xx = 0; xx < INNER_N_COL_SECOND; ++xx)
-							{
-								pOut[l][xx] += pB[mmm][xx] * inA[i][k][l][mmm];
-							}
-						}*/
-					}	
-					
-					
+					}				
 					for (int lll = INNER_N_ROW_FIRST_ALIGNED_TO_4_DOWN; lll < INNER_N_ROW_FIRST; ++lll) {
 						for (int xxxx = 0; xxxx < INNER_N_COL_FIRST; xxxx++)
 						{
@@ -277,6 +268,121 @@ public:
 				}
 			}
 		}
+	}
+
+	using FltMxIn = const float const* const;
+	using FltMxOut = float * const;
+	static void CacheL1Optimazation(const size_t nCol1stRow2nd
+		, FltMxIn inA, const size_t  nRowA
+		, FltMxIn inB, const size_t nColB,FltMxOut out) 
+	{
+		for (int l = 0; l < nRowA; l++)
+		{
+			for (int x = 0; x < nColB; x++)
+			{
+				for (int m = 0; m < nCol1stRow2nd; m++) 
+				{
+					out[l*nColB+x] += inA[l*nCol1stRow2nd+m] * inB[m*nColB+x];
+				}
+			}
+		}
+	}
+	static void DefaultMul(const size_t nCol1stRow2nd
+		, FltMxIn inA, const size_t  nRowA
+		, FltMxIn inB, const size_t nColB,FltMxOut out) 
+	{
+		//const size_t L3 = 32* 1024*8/;
+		for (int l = 0; l < nRowA; l++)
+		{
+			for (int x = 0; x < nColB; x++)
+			{
+				for (int m = 0; m < nCol1stRow2nd; m++) 
+				{
+					out[l*nColB+x] += inA[l*nCol1stRow2nd+m] * inB[m*nColB+x];
+				}
+			}
+		}
+	}
+
+	static bool Equals( FltMxIn inA, const size_t  nRowA
+		, FltMxIn inB, const size_t nColB)
+	{
+		for (int i = 0; i < nRowA; i++) {
+			for (int j = 0; j < nColB; j++) {
+				if (inA[i * nColB + j] != inB[i * nColB + j])
+					return false;
+			}
+		}
+		return true;
+	}
+
+	static void cacheOptimization(const size_t nCol1stRow2nd, const size_t nRow1st
+		,float* a, const size_t nCol2nd, float* b, float* result) {
+		//int blockSize = 64;
+		
+		const size_t L1SizeOfBlock = min(nCol2nd,32*1024/64);
+		const size_t L2SizeOfBlock = min(nCol1stRow2nd, 512 * 1024 / (sizeof(float)) / L1SizeOfBlock);
+		const size_t L3SizeOfBlock = min(nCol1stRow2nd, 4 * 1024 * 1024 / sizeof(float) / L1SizeOfBlock);
+
+		size_t newL3CacheSize, newL2CacheSize, newL1CacheSize;
+		//int i, j, k, I, J, K;
+
+		for (int i = 0; i < nRow1st; i += L3SizeOfBlock)
+		{
+			newL3CacheSize = min(L3SizeOfBlock, nRow1st - i);
+			for (int j = 0; j < nCol2nd; j += L2SizeOfBlock)
+			{
+				newL2CacheSize = min(L2SizeOfBlock, nCol2nd - j);
+				for (int k = 0; k <nCol1stRow2nd ;k += L1SizeOfBlock)
+				{
+					newL1CacheSize = min(L1SizeOfBlock, nCol1stRow2nd - k);
+					for (int iInner = i; iInner <i+ newL3CacheSize; iInner++)
+					{
+						for (int jInner = k; jInner <k+ newL1CacheSize; jInner++)
+						{
+							for (int kInner = j; kInner <j+ newL2CacheSize; kInner++)
+							{
+								result[iInner * nCol2nd + kInner] += a[iInner*nCol1stRow2nd+jInner] * b[jInner*nCol2nd+kInner];
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	static void Print(FltMxIn a,const size_t nrow, const size_t ncol)
+	{
+		for (size_t i = 0; i < nrow; i++)
+		{
+			for (size_t j = 0; j < ncol; j++)
+			{
+				std::cout << a[i*ncol+j]<< "   ";
+			}
+			std::cout << std::endl;
+		}
+	}
+	static constexpr size_t PADDING_SIZE = 32;
+
+	static float* Create(const size_t nrow, const size_t ncol, const std::function<int()>& generator,bool& was_aligned, const size_t padding)
+	{
+		const size_t bufSz = nrow * ncol;
+		size_t bufSzWithPadding = bufSz + padding;
+
+		void* buf = new float[bufSzWithPadding];
+
+		was_aligned = std::align(padding, bufSz, buf, bufSzWithPadding) ? true : false;
+
+		float* ret = reinterpret_cast<float*> (buf);
+
+		for (size_t i = 0; i < nrow; i++)
+		{
+			for (size_t j = 0; j < ncol; j++)
+			{
+				ret[i * ncol + j] = 0;
+			}
+		}
+		return ret;
 	}
 
 	static void MultNoVec(FltMxMxIn inA, FltMxMxIn inB, FltMxMxOut out)
@@ -348,17 +454,70 @@ int main()
 {
 	srand(time(NULL));
 
-	float**** a = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST, []() {return rand()%20; });
+	/*float**** a = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST, []() {return rand()%20; });
 	float**** b = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_SECOND, INNER_N_COL_SECOND, []() {return rand() % 20;});
 	float**** c = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 	float**** d = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 	float**** e = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
-	float**** f = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
+	float**** f = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });*/
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
+
+	bool was_aligned_mx1;
+	float* mx = MatrixProcessor::Create(1024, 1024, []() {static int i = 0; i++; return i; },was_aligned_mx1,MatrixProcessor::PADDING_SIZE);
+	if (!was_aligned_mx1)
+	{
+		std::cout << std::endl << "Not Aligned" << std::endl;
+	}
+	//MatrixProcessor::Print(mx, 5, 3);
+
+	bool was_aligned_mx2;
+	float* mx2 = MatrixProcessor::Create(1024, 1024, []() {static int i = 0; i++; return i; }, was_aligned_mx2,MatrixProcessor::PADDING_SIZE);
+	if (!was_aligned_mx2)
+	{
+		std::cout << std::endl << "Not Aligned" << std::endl;
+	}
+	//MatrixProcessor::Print(mx2,3, 2);
+
+	bool was_aligned_mx3;
+	float* mx3 = MatrixProcessor::Create(1024, 1024, []() {static int i = 0; return i; }, was_aligned_mx3, MatrixProcessor::PADDING_SIZE);
+	if (!was_aligned_mx3)
+	{
+		std::cout << std::endl << "Not Aligned" << std::endl;
+	}
+	
+
+	//MatrixProcessor::Print(mx3, 5, 2);
+
+	bool was_aligned_mx4;
+	float* mx4 = MatrixProcessor::Create(1024, 1024, []() {static int i = 0; return i; }, was_aligned_mx4, MatrixProcessor::PADDING_SIZE);
+	if (!was_aligned_mx4)
+	{
+		std::cout << std::endl << "Not Aligned" << std::endl;
+	}
+
+	start = std::chrono::high_resolution_clock::now();
+
+	MatrixProcessor::cacheOptimization(1024, 1024, mx, 1024, mx2, mx3);
+
+	end = std::chrono::high_resolution_clock::now();
+	std::cout << "Time  Cache: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "mcs" << std::endl;
+
+	start = std::chrono::high_resolution_clock::now();
+
+	MatrixProcessor::DefaultMul(1024, mx, 1024, mx2, 1024, mx4);
+
+	end = std::chrono::high_resolution_clock::now();
+	std::cout << "Time default: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "mcs" << std::endl;
+
+	//MatrixProcessor::Print(mx3, 5, 2);
+
+	std::cout << MatrixProcessor::Equals(mx4, 1024, mx3, 1024);
 
 	//SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
+	/*std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
 
 	start = std::chrono::high_resolution_clock::now();
 	MatrixProcessor::MultNoVec(a, b, c);
@@ -391,9 +550,9 @@ int main()
 
 	constexpr float epsilon = 0.00001f;
 	if (!(MatrixProcessor::AreEqual(c, d, epsilon) && MatrixProcessor::AreEqual(d, e, epsilon) && MatrixProcessor::AreEqual(e, f, epsilon)))
-		std::cout << "Not equal. Not Xdd" << std::endl;
+		std::cout << "Not equal. Not Xdd" << std::endl;*/
 
-	MatrixProcessor::Print(a,OUTER_N_ROW,OUTER_N_COL,INNER_N_ROW_FIRST,INNER_N_COL_FIRST);
+	/*MatrixProcessor::Print(a,OUTER_N_ROW,OUTER_N_COL,INNER_N_ROW_FIRST,INNER_N_COL_FIRST);
 
 	std::cout << "-----------------------------" << std::endl;
 
@@ -413,7 +572,7 @@ int main()
 
 	std::cout << "-----------------------------" << std::endl;
 
-	MatrixProcessor::Print(f, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);
+	MatrixProcessor::Print(f, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND);*/
 
 	/*for (int i = 0; i < MS; i++)
 	{
