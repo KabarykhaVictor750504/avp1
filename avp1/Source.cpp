@@ -7,8 +7,8 @@
 #include <Windows.h>
 #include <new>
 
-constexpr size_t OUTER_N_ROW = 5;
-constexpr size_t OUTER_N_COL = 5;
+constexpr size_t OUTER_N_ROW = 2;
+constexpr size_t OUTER_N_COL = 2;
 
 constexpr size_t INNER_N_ROW_FIRST = 5;
 constexpr size_t INNER_N_COL_FIRST = 5;
@@ -420,7 +420,7 @@ public:
 		{
 			for (size_t j = 0; j < ncol; j++)
 			{
-				std::cout << a[i*ncol+j]<< "   ";
+				std::cout << a[i*ncol+j]<< " ";
 			}
 			std::cout << std::endl;
 		}
@@ -459,13 +459,13 @@ public:
 		}
 		for (size_t i = 0; i < nRowOuter; i++)
 		{
-			for (size_t k = 0; k < nRowInner; k++)
+			for (size_t k = 0; k < nColOuter; k++)
 			{
-			    for (size_t j = 0; j < nColOuter; j++) 
+			    for (size_t j = 0; j < nRowInner; j++) 
 				{
 					for (size_t l = 0; l < nColInner; l++)
 					{
-						to_it[(i * (nColOuter)+j)*nColInner*nRowInner + k * nColInner +l] = from_is[i][j][k][l];
+						to_it[(i * nColOuter )*nRowInner*nColInner+k*nColInner +j*(nColInner*nColOuter) +l] = from_is[i][k][j][l];
 					}
 				}
 			}
@@ -552,11 +552,11 @@ int main()
 	float**** f = Create(OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_SECOND, []() {return 0; });
 
 
-	//float* cd = MatrixProcessor::Transform(a, OUTER_N_COL, OUTER_N_ROW, INNER_N_COL_FIRST, INNER_N_ROW_FIRST);
+	float* cd = MatrixProcessor::Transform(a, OUTER_N_COL, OUTER_N_ROW, INNER_N_COL_FIRST, INNER_N_ROW_FIRST);
 
-	//MatrixProcessor::Print(cd, INNER_N_ROW_FIRST *OUTER_N_ROW, OUTER_N_COL* INNER_N_COL_FIRST);
+	MatrixProcessor::Print(cd, INNER_N_ROW_FIRST *OUTER_N_ROW, OUTER_N_COL* INNER_N_COL_FIRST);
 
-	//MatrixProcessor::Print(a, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST);
+	MatrixProcessor::Print(a, OUTER_N_ROW, OUTER_N_COL, INNER_N_ROW_FIRST, INNER_N_COL_FIRST);
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
 
